@@ -11,41 +11,67 @@ const TGAColor green = TGAColor(0,   255, 0,   255);
 Model *model = NULL;
 const int width = 800;
 const int height = 800;
+const int depth = 255;
 
-void line(int x0, int y0, int x1, int y1, TGAImage &image, TGAColor color) {
-	bool isSteep = false;
-	if (std::abs(x0-x1) < std::abs(y0-y1)) {
-		std::swap(x0,y0);
-		std::swap(x1,y1);
-		isSteep = true;
-	}
-
-	if (x0 > x1) {
-		std::swap(x0,x1);
-		std::swap(y0,y1);
-	}
-
-	int dx = x1 - x0;
-	int dy = y1 - y0;
-
-	int derror = std::abs(dy) * 2;
-	int error = 0;
-	
-	int y = y0;
-	for (int x = x0; x<=x1; x++) {
-		if (isSteep) {
-			image.set(y,x,color);
-		} else {
-			image.set(x,y,color);
-		}
-
-		error += derror;
-		if (error > dx) {
-			y += (y1>y0?1:-1);
-			error -= dx * 2;
-		}
-	}
+Vec3f m2v(Matrix m) {
+	return Vec3f(m[0][0]/m[3][0], m[1][0]/m[3][0], m[2][0]/m[3][0]);
 }
+
+Matrix v2m(Vec3f v) {
+	Matrix m(4, 1);
+	m[0][0] = v.x;
+	m[1][0] = v.y;
+	m[2][0] = v.z;
+	m[3][0] = 1.f;
+	return m;
+}
+
+Matrix viewport(int x, int y, int w, int h) {
+	Matrix m = Matrix::identity(4);
+	m[0][3] = x+w/2.f;
+	m[1][3] = y+h/2.f;
+	m[2][3] = depth/2.f;
+
+	m[0][0] = w/2.f;
+	m[1][1] = h/2.f;
+	m[2][2] = depth/2.f;
+	return m;
+}
+
+// void line(int x0, int y0, int x1, int y1, TGAImage &image, TGAColor color) {
+// 	bool isSteep = false;
+// 	if (std::abs(x0-x1) < std::abs(y0-y1)) {
+// 		std::swap(x0,y0);
+// 		std::swap(x1,y1);
+// 		isSteep = true;
+// 	}
+
+// 	if (x0 > x1) {
+// 		std::swap(x0,x1);
+// 		std::swap(y0,y1);
+// 	}
+
+// 	int dx = x1 - x0;
+// 	int dy = y1 - y0;
+
+// 	int derror = std::abs(dy) * 2;
+// 	int error = 0;
+	
+// 	int y = y0;
+// 	for (int x = x0; x<=x1; x++) {
+// 		if (isSteep) {
+// 			image.set(y,x,color);
+// 		} else {
+// 			image.set(x,y,color);
+// 		}
+
+// 		error += derror;
+// 		if (error > dx) {
+// 			y += (y1>y0?1:-1);
+// 			error -= dx * 2;
+// 		}
+// 	}
+// }
 
 void line (Vec2i p0, Vec2i p1, TGAImage &image, TGAColor color) {
 	bool isSteep = false;
@@ -185,36 +211,36 @@ Vec3f barycentric(Vec3f *pts, Vec3f P) {
 		s[i][1] = pts[2][i] - pts[0][i];
 		s[i][2] = pts[0][i] - P[i];
 	}
-	Vec3f u = cross(s[0],s[1]);
+	Vec3f u = s[0]^s[1];
 	if (abs(u[2]) > 1e-2) return Vec3f(1.f-(u.x+u.y)/u.z, u.y/u.z, u.x/u.z);
 	return Vec3f(-1,1,1);
 }
 
-void triangle(Vec3f *pts, float *zbuffer, TGAImage &image, TGAColor color) {
-	Vec2f bboxmin( std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
-	Vec2f bboxmax(-std::numeric_limits<float>::max(),-std::numeric_limits<float>::max());
-	Vec2f clamp(image.get_width()-1, image.get_height()-1);
+// void triangle(Vec3f *pts, float *zbuffer, TGAImage &image, TGAColor color) {
+// 	Vec2f bboxmin( std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+// 	Vec2f bboxmax(-std::numeric_limits<float>::max(),-std::numeric_limits<float>::max());
+// 	Vec2f clamp(image.get_width()-1, image.get_height()-1);
 
-	for (int i=0; i<3; i++) {
-		for (int j=0; j<2; j++) {
-			bboxmin[j] = std::max(0.f,      std::min(bboxmin[j], pts[i][j]));
-			bboxmax[j] = std::min(clamp[j], std::max(bboxmax[j], pts[i][j]));
-		}
-	}
-	Vec3f P;
-	for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
-		for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
-			Vec3f bc_screen = barycentric(pts, P);
-			if (bc_screen.x<0 || bc_screen.y<0 || bc_screen.z<0) continue;
-			P.z =0;
-			for (int i = 0; i<3; i++) P.z += pts[i][2]*bc_screen[i];
-			if (zbuffer[int(P.x+P.y*width)]<P.z) {
-				zbuffer[int(P.x+P.y*width)] = P.z;
-				image.set(P.x,P.y,color);
-			}
-		}
-	}
-}
+// 	for (int i=0; i<3; i++) {
+// 		for (int j=0; j<2; j++) {
+// 			bboxmin[j] = std::max(0.f,      std::min(bboxmin[j], pts[i][j]));
+// 			bboxmax[j] = std::min(clamp[j], std::max(bboxmax[j], pts[i][j]));
+// 		}
+// 	}
+// 	Vec3f P;
+// 	for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
+// 		for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
+// 			Vec3f bc_screen = barycentric(pts, P);
+// 			if (bc_screen.x<0 || bc_screen.y<0 || bc_screen.z<0) continue;
+// 			P.z =0;
+// 			for (int i = 0; i<3; i++) P.z += pts[i][2]*bc_screen[i];
+// 			if (zbuffer[int(P.x+P.y*width)]<P.z) {
+// 				zbuffer[int(P.x+P.y*width)] = P.z;
+// 				image.set(P.x,P.y,color);
+// 			}
+// 		}
+// 	}
+// }
 
 void triangle(Vec3f *pts, Vec3f *texture_pts, float intensity, float *zbuffer, TGAImage &image, TGAImage &textureImage) {
 	Vec2f bboxmin( std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
@@ -231,6 +257,14 @@ void triangle(Vec3f *pts, Vec3f *texture_pts, float intensity, float *zbuffer, T
 	}
 	Vec3f P;
 	Vec3f texture;
+	// std::cout << bboxmin << "\n";
+	// std::cout << bboxmin[0] << " " << bboxmin[1] << "\n";
+	// std::cout << bboxmin.x << " " << bboxmin.y << "\n\n";
+	// std::cout << bboxmax << "\n";
+	// std::cout << bboxmax[0] << " " << bboxmax[1] << "\n";
+	// std::cout << bboxmax.x << " " << bboxmax.y << "\n\n\n";
+
+
 	for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
 		for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
 			Vec3f bc_screen = barycentric(pts, P);
@@ -244,10 +278,12 @@ void triangle(Vec3f *pts, Vec3f *texture_pts, float intensity, float *zbuffer, T
 				texture.y += texture_pts[(i)%3][1]*bc_screen[(3-i)%3];
 			}
 			
-
+			
 			if (zbuffer[int(P.x+P.y*width)]<P.z) {
+				
 				zbuffer[int(P.x+P.y*width)] = P.z;
 				TGAColor color = textureImage.get((int) (texture.x * texture_width),(int) (texture.y * texture_height));
+				// TGAColor color = red;
 				image.set(P.x,P.y,color);
 			}
 		}
@@ -256,7 +292,7 @@ void triangle(Vec3f *pts, Vec3f *texture_pts, float intensity, float *zbuffer, T
 
 
 Vec3f world2screen(Vec3f v) {
-	return Vec3f(int((v.x+1.)*width/2. + .5), int((v.y+1.)*height/2.+.5), v.z);
+	return Vec3f(int((v.x+1.)*width/2.+.5), int((v.y+1.)*height/2.+.5), v.z);
 }
 
 int main(int argc, char** argv) {
@@ -278,31 +314,12 @@ int main(int argc, char** argv) {
 	Vec3f light_dir(0,0,-1);
 	float *zbuffer = new float[width*height];
 	for (int i =width*height; i--; zbuffer[i] = -std::numeric_limits<float>::max());
-	/*
-	line(0,0,20,50,image, white);
-	line(0,0,50,20,image, red);
-	image.set(52, 41, red);
-	*/
-	/*
-	for (int i=0; i<model->nfaces(); i++) {
-		std::vector<int> face = model->face(i);
-		for (int j=0; j<3; j++) {
-			Vec3f v0 = model->vert(face[j]);
-			Vec3f v1 = model->vert(face[(j+1)%3]);
-			int x0 = (v0.x+1.)*width/2.;
-			int y0 = (v0.y+1.)*height/2.;
-			int x1 = (v1.x+1.)*width/2.;
-			int y1 = (v1.y+1.)*height/2.;
-			line(x0, y0, x1, y1, image, white);
-		}
-	}
-	*/
-	
 	
 	for (int i = 0; i < model->nfaces(); i++) {
 		
 		std::vector<int> face = model->face(i);
 		Vec3f pts[3], world_coords[3], texture_pts[3];
+		
 		for (int j=0; j<3; j++) {
 			world_coords[j] = model->vert(face[2*j]);
 			pts[j] = world2screen(world_coords[j]);
@@ -312,17 +329,13 @@ int main(int argc, char** argv) {
 
 
 		
-		Vec3f n = cross((world_coords[2]-world_coords[0]),(world_coords[1]-world_coords[0]));
+		Vec3f n = (world_coords[2]-world_coords[0])^(world_coords[1]-world_coords[0]);
 		n.normalize();
 		float intensity = n * light_dir;
 		if (intensity > 0) {
 			if (vt_success) {
 				triangle(pts, texture_pts, intensity, zbuffer, image, texture);
-			} else {
-				float brightness = intensity * 255;
-				triangle(pts, zbuffer, image, TGAColor(brightness,brightness,brightness,255));
-			}
-			
+			} 
 		}
 		
 	}
