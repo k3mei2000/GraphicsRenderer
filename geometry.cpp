@@ -16,13 +16,13 @@ Matrix::Matrix(int r, int c) : m(std::vector<std::vector<float> >(r, std::vector
 
 }
 
-int Matrix::nrows() {
-    return rows;
-}
+// int Matrix::nrows() {
+//     return rows;
+// }
 
-int Matrix::ncols() {
-    return cols;
-}
+// int Matrix::ncols() {
+//     return cols;
+// }
 
 Matrix Matrix::identity(int dim) {
     Matrix I(dim, dim);

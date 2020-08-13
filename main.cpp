@@ -9,8 +9,8 @@ const TGAColor white = TGAColor(255, 255, 255, 255);
 const TGAColor red   = TGAColor(255, 0,   0,   255);
 const TGAColor green = TGAColor(0,   255, 0,   255);
 Model *model = NULL;
-const int width = 800;
-const int height = 800;
+const int width = 1600;
+const int height = 1600;
 const int depth = 255;
 
 Vec3f m2v(Matrix m) {
@@ -292,6 +292,7 @@ void triangle(Vec3f *pts, Vec3f *texture_pts, float intensity, float *zbuffer, T
 
 
 Vec3f world2screen(Vec3f v) {
+
 	return Vec3f(int((v.x+1.)*width/2.+.5), int((v.y+1.)*height/2.+.5), v.z);
 }
 
@@ -312,6 +313,13 @@ int main(int argc, char** argv) {
 
 	TGAImage image(width, height, TGAImage::RGB);
 	Vec3f light_dir(0,0,-1);
+	Matrix projection(4,4);
+	for (int i = 0; i < projection.nrows(); i++) {
+		for (int j = 0; j < projection.ncols(); j++) {
+			projection[i][j] = (i == j);
+		}
+	}
+	projection[3][2] = - 1.f / 4.f;
 	float *zbuffer = new float[width*height];
 	for (int i =width*height; i--; zbuffer[i] = -std::numeric_limits<float>::max());
 	
@@ -322,14 +330,18 @@ int main(int argc, char** argv) {
 		
 		for (int j=0; j<3; j++) {
 			world_coords[j] = model->vert(face[2*j]);
+			//std::cout << "Pre: " << world_coords[j] << "\n";
+			world_coords[j] = m2v(projection * v2m(world_coords[j]));
 			pts[j] = world2screen(world_coords[j]);
 
+			//std::cout << "Post: " << world_coords[j] << "\n\n";
+			
 			texture_pts[j] = model->texture(face[2*j+1]);
 		}
 
-
 		
-		Vec3f n = (world_coords[2]-world_coords[0])^(world_coords[1]-world_coords[0]);
+		
+		Vec3f n = (pts[2]-pts[0])^(pts[1]-pts[0]);
 		n.normalize();
 		float intensity = n * light_dir;
 		if (intensity > 0) {
